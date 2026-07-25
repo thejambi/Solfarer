@@ -1,0 +1,12 @@
+{
+  "name": "Solfarer",
+  "short_name": "Solfarer",
+  "description": "Wander the real stars — the 100-light-year Local Bubble with honest twin-paradox travel.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000308",
+  "theme_color": "#02040a",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
