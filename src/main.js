@@ -111,18 +111,20 @@ let selected = -2;              // star under inspection, -2 = none
 // Search & filter — matching stars stay bright, the rest fall into shadow
 // (and out of reach of the pointer).
 // ---------------------------------------------------------------------------
-const filter = { q: "", cls: new Set(), con: "", namedOnly: false };
+const filter = { q: "", cls: new Set(), con: "", namedOnly: false,
+                 eyeOnly: false };
 let filterOn = false;
 const matchSet = new Uint8Array(N);
 let matchCount = 0;
 
 function filterActive() {
   return filter.q !== "" || filter.cls.size > 0 || filter.con !== "" ||
-         filter.namedOnly;
+         filter.namedOnly || filter.eyeOnly;
 }
 
 function matches(i) {
   if (filter.namedOnly && !named_(i)) return false;
+  if (filter.eyeOnly && amag_(i) > 6.5) return false;   // dark-sky human limit
   if (filter.cls.size > 0 && !filter.cls.has(cls_(i)[0])) return false;
   if (filter.con && con_(i) !== filter.con) return false;
   if (filter.q) {
@@ -537,9 +539,15 @@ $("namedOnly").addEventListener("change", (e) => {
   filter.namedOnly = e.target.checked;
   refilter();
 });
+$("eyeOnly").addEventListener("change", (e) => {
+  filter.eyeOnly = e.target.checked;
+  refilter();
+});
 $("clearFilter").addEventListener("click", () => {
   filter.q = ""; filter.cls.clear(); filter.con = ""; filter.namedOnly = false;
+  filter.eyeOnly = false;
   $("q").value = ""; $("conSel").value = ""; $("namedOnly").checked = false;
+  $("eyeOnly").checked = false;
   for (const chip of document.querySelectorAll("#clsChips .chip"))
     chip.classList.remove("on");
   refilter();
