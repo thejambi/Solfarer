@@ -25,6 +25,9 @@ const absmag_ = (i) => (i < 0 ? 4.83 : STARS[i][5]);
 const temp_ = (i) => (i < 0 ? 5772 : STARS[i][6]);
 const con_ = (i) => (i < 0 ? "" : STARS[i][7]);
 const named_ = (i) => (i < 0 ? 1 : STARS[i][8]);
+const lum_ = (i) => (i < 0 ? 1 : STARS[i][9]);
+const amag_ = (i) => (i < 0 ? -26.7 : STARS[i][10]);
+const var_ = (i) => (i < 0 ? 0 : STARS[i][11]);
 
 const CLASS_DESC = { O: "blue giant", B: "blue-white star", A: "white star",
   F: "yellow-white star", G: "yellow dwarf", K: "orange dwarf",
@@ -54,6 +57,15 @@ function fmtYr(v) {
   return v.toFixed(1) + " yr";
 }
 const fmtBeta = (b) => b.toFixed(4).replace(/^0/, "") + "c";
+function fmtLum(l) {
+  if (!l) return "—";
+  const n = l >= 100 ? Math.round(l).toLocaleString("en-US")
+    : l >= 10 ? l.toFixed(0)
+    : l >= 1 ? l.toFixed(1)
+    : l >= 0.01 ? l.toFixed(2)
+    : l.toPrecision(1).replace("e-", "e−");
+  return n + (n === "1.0" || n === "1" ? " Sun" : " Suns");
+}
 
 // ---------------------------------------------------------------------------
 // State — where you are and what your life has cost
@@ -299,10 +311,14 @@ function select(i) {
   const c = cls_(i);
   const desc = CLASS_DESC[c[0]] || "star";
   $("stNature").textContent =
-    c + " " + desc + (con_(i) ? " in " + con_(i) : "");
+    c + " " + desc + (con_(i) ? " in " + con_(i) : "") +
+    (var_(i) ? " · variable" : "");
   $("stSol").textContent = i === SOL ? "home" : fmtLy(distSol(i));
   $("stHere").textContent = i === state.cur ? "you are here" : fmtLy(dist(state.cur, i));
-  $("stMag").textContent = absmag_(i).toFixed(1);
+  $("stLum").textContent = fmtLum(lum_(i));
+  $("stEye").textContent = i === SOL ? "it is the day"
+    : amag_(i) <= 6.5 ? "naked eye, " + amag_(i).toFixed(1)
+    : "telescope, " + amag_(i).toFixed(1);
   const f = fare(dist(state.cur, i));
   $("stUni").textContent = fmtYr(f.tUni);
   $("stShip").textContent = fmtYr(f.tShip);
