@@ -91,9 +91,20 @@
   #go:hover { filter: brightness(1.12); }
   #go.home { background: var(--ok); }
 
-  /* toggles, top center */
+  /* toggles: a centered row on desktop; on mobile the options fold into a
+     cog at the top-right, search staying out at its left */
   #toggles { position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
     display: flex; gap: 8px; z-index: 6; }
+  #togTop, #togMenu { display: contents; }
+  #autoBadge { order: 1; } #d3Badge { order: 2; } #lblBadge { order: 3; }
+  #searchBadge { order: 4; } #helpBadge { order: 5; }
+  #cogBadge { display: none; order: 6; }
+  #cogBadge svg { transition: transform .25s ease; }
+  #toggles.open #cogBadge svg { transform: rotate(60deg); }
+  #cogBadge.live { position: relative; }
+  #cogBadge.live::after { content: ""; position: absolute; top: -2px; right: -2px;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+    box-shadow: 0 0 6px rgba(141,255,158,.8); }
   .badge { padding: 5px 13px; font-size: 11px; letter-spacing: 1.5px; border-radius: 14px;
     cursor: pointer; color: var(--gold-dim); background: rgba(20,16,6,.75);
     border: 1px solid rgba(255,215,106,.25); }
@@ -154,6 +165,21 @@
     #star { width: auto; left: 14px; right: 14px; top: auto; bottom: 14px; }
     #ledger { display: none; }
     #here { min-width: 0; }
+    #toggles { left: auto; right: 10px; top: 10px; transform: none;
+      flex-direction: column; align-items: flex-end; }
+    #togTop { display: flex; gap: 8px; }
+    #togMenu { display: none; flex-direction: column; align-items: flex-end;
+      gap: 8px; }
+    #toggles.open #togMenu { display: flex; }
+    #cogBadge { display: block; }
+    #togMenu .badge { animation: menuIn .18s ease backwards; }
+    #togMenu .badge:nth-child(2) { animation-delay: .04s; }
+    #togMenu .badge:nth-child(3) { animation-delay: .08s; }
+    #togMenu .badge:nth-child(4) { animation-delay: .12s; }
+    #search { left: auto; right: 10px; transform: none; }
+  }
+  @keyframes menuIn {
+    from { opacity: 0; transform: translateY(-6px); }
   }
 </style>
 </head>
@@ -192,11 +218,16 @@
 </div>
 
 <div id="toggles">
-  <div class="badge" id="autoBadge" title="Skip the flight; arrive instantly">AUTO TRAVEL</div>
-  <div class="badge" id="d3Badge" title="Orbit view: drag turns the sky around where you're docked">3D</div>
-  <div class="badge" id="lblBadge" title="Star names on the chart">LABELS</div>
-  <div class="badge" id="searchBadge" title="Search &amp; filter the catalog"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="10" cy="10" r="7"/><line x1="15.5" y1="15.5" x2="22" y2="22"/></svg></div>
-  <div class="badge" id="helpBadge">?</div>
+  <div id="togTop">
+    <div class="badge" id="searchBadge" title="Search &amp; filter the catalog"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="10" cy="10" r="7"/><line x1="15.5" y1="15.5" x2="22" y2="22"/></svg></div>
+    <div class="badge" id="cogBadge" title="Options"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2"/></svg></div>
+  </div>
+  <div id="togMenu">
+    <div class="badge" id="autoBadge" title="Skip the flight; arrive instantly">AUTO TRAVEL</div>
+    <div class="badge" id="d3Badge" title="Orbit view: drag turns the sky around where you're docked">3D</div>
+    <div class="badge" id="lblBadge" title="Star names on the chart">LABELS</div>
+    <div class="badge" id="helpBadge">?</div>
+  </div>
 </div>
 
 <div class="panel" id="search">

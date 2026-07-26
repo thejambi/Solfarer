@@ -344,6 +344,7 @@ let dragging = false, moved = false, lx = 0, ly = 0;
 chart.addEventListener("pointerdown", (e) => {
   dragging = true; moved = false; lx = e.clientX; ly = e.clientY;
   chart.setPointerCapture(e.pointerId);
+  document.getElementById("toggles").classList.remove("open");
 });
 chart.addEventListener("pointermove", (e) => {
   if (!dragging) return;
@@ -486,7 +487,9 @@ $("go").addEventListener("click", () => {
 // toggles
 const autoBadge = $("autoBadge");
 function reflectAuto() { autoBadge.classList.toggle("on", !!state.auto); }
-autoBadge.addEventListener("click", () => { state.auto = !state.auto; save(); reflectAuto(); });
+autoBadge.addEventListener("click", () => {
+  state.auto = !state.auto; save(); reflectAuto(); reflectCog();
+});
 reflectAuto();
 
 const d3Badge = $("d3Badge");
@@ -496,6 +499,7 @@ d3Badge.addEventListener("click", () => {
   state.v3 = view3d;
   save();
   reflect3d();
+  reflectCog();
   drawChart();
 });
 view3d = !!state.v3;
@@ -508,10 +512,21 @@ lblBadge.addEventListener("click", () => {
   state.lbl = showLabels;
   save();
   reflectLbl();
+  reflectCog();
   drawChart();
 });
 showLabels = state.lbl !== false;
 reflectLbl();
+
+// mobile: the options fold into a cog; a green dot on it means something in
+// the folded menu is off its default, so collapsed never hides state
+const toggles = $("toggles");
+$("cogBadge").addEventListener("click", () => toggles.classList.toggle("open"));
+function reflectCog() {
+  $("cogBadge").classList.toggle("live",
+    !!state.auto || !!state.v3 || state.lbl === false);
+}
+reflectCog();
 
 $("helpBadge").addEventListener("click", () => $("help").classList.add("on"));
 $("help").addEventListener("click", () => $("help").classList.remove("on"));
