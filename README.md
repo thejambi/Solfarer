@@ -29,6 +29,12 @@ Not a game. Just the experience.
   everything reachable in a human lifetime shrinks to one golden huddle
   while the beacons hang in the void, rings marking 250/500/1000/2000 ly.
   They're real destinations. Check what the trip costs.
+- **3D orbit.** Toggle **3D** and drag to turn the sky around wherever
+  you're docked. The range rings lean over with the view, near stars
+  swell, far ones shrink, and the beacons drop guide-lines to the
+  galactic plane so you can see who floats above it and who hangs
+  below. Search and filters work here too — light up a constellation
+  and watch it hold together in depth.
 - **Star cards with the real numbers.** Class and nature (luminosity
   class parsed from the spectral type, so Betelgeuse is a red
   supergiant, Pollux an orange giant), distance, luminosity in Suns,

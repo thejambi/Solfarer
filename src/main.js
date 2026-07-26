@@ -97,7 +97,7 @@ function fmtLum(l) {
 // ---------------------------------------------------------------------------
 const state = {
   cur: SOL, hops: 0, ly: 0, tUni: 0, tShip: 0, far: 0,
-  auto: false,
+  auto: false, v3: false,
 };
 try {
   Object.assign(state, JSON.parse(localStorage.getItem("solfarer") || "{}"));
@@ -163,8 +163,39 @@ function resize() {
 }
 addEventListener("resize", resize);
 
-const sx = (x) => (x - cam.x) * cam.s + W / 2;
-const sy = (y) => H / 2 - (y - cam.y) * cam.s;
+// --- 3D orbit view ----------------------------------------------------------
+// The chart knows every star's z; 3D mode just stops throwing it away.
+// Yaw spins the sky about the galactic pole, tilt leans it over; the pivot is
+// wherever you're docked. tilt = 0, yaw = 0 reproduces the flat chart exactly.
+let view3d = false;
+let yaw = 0.7, tilt = 0.5;
+let cosA = 1, sinA = 0, cosB = 1, sinB = 0, czv = 0;
+function viewBasis() {
+  if (view3d) { cam.x = px_(state.cur); cam.y = py_(state.cur); }
+  cosA = Math.cos(yaw); sinA = Math.sin(yaw);
+  cosB = Math.cos(tilt); sinB = Math.sin(tilt);
+  czv = view3d ? pz_(state.cur) : 0;
+}
+// screen position, depth toward the viewer (ly), and a mild size cue
+function projXYZ(x, y, z) {
+  const dx = x - cam.x, dy = y - cam.y;
+  if (!view3d)
+    return { x: dx * cam.s + W / 2, y: H / 2 - dy * cam.s, d: 0, k: 1 };
+  const dz = z - czv;
+  const x1 = dx * cosA - dy * sinA;
+  const y1 = dx * sinA + dy * cosA;
+  const y2 = y1 * cosB - dz * sinB;
+  const d = y1 * sinB + dz * cosB;
+  return {
+    x: x1 * cam.s + W / 2, y: H / 2 - y2 * cam.s, d,
+    k: Math.max(0.55, Math.min(1.7, 1 + d / 260)),
+  };
+}
+const proj_ = (i) => projXYZ(px_(i), py_(i), pz_(i));
+// per-frame projection scratch + far-to-near paint order for 3D
+const PX = new Float32Array(N), PY = new Float32Array(N);
+const PK = new Float32Array(N), PD = new Float32Array(N);
+const ORDER = new Int32Array(N);
 
 function starRadius(i) {
   const am = absmag_(i);
@@ -173,12 +204,13 @@ function starRadius(i) {
 }
 
 function drawChart() {
+  viewBasis();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = "#000308";
   ctx.fillRect(0, 0, W, H);
 
-  // faint range rings from Sol — the outer ones carry their distance, so
-  // zooming out reads as a journey: 100 ly of neighborhood, then the void
+  // faint range rings from Sol — polylines in the galactic plane, so in 3D
+  // they lean over with the view; the outer ones carry their distance
   ctx.lineWidth = 1;
   ctx.font = "11px ui-monospace, Menlo, monospace";
   for (const r of [25, 50, 75, 100, 250, 500, 1000, 2000]) {
@@ -186,34 +218,48 @@ function drawChart() {
     if (pr < 12 || pr > Math.max(W, H) * 1.5) continue;
     ctx.strokeStyle = "rgba(255,215,106,.09)";
     ctx.beginPath();
-    ctx.arc(sx(0), sy(0), pr, 0, Math.PI * 2);
+    for (let a = 0; a <= 72; a++) {
+      const p = projXYZ(r * Math.cos(a * Math.PI / 36),
+                        r * Math.sin(a * Math.PI / 36), 0);
+      if (a === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
     ctx.stroke();
     if (r > 100) {
+      const lp = projXYZ(0, r, 0);
       ctx.fillStyle = "rgba(255,215,106,.35)";
-      ctx.fillText(r + " ly", sx(0) + 4, sy(0) - pr - 5);
+      ctx.fillText(r + " ly", lp.x + 4, lp.y - 5);
     }
   }
 
   // route to the selected star
   if (selected > -2 && selected !== state.cur) {
+    const a = proj_(state.cur), b = proj_(selected);
     ctx.strokeStyle = "rgba(255,215,106,.8)";
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(sx(px_(state.cur)), sy(py_(state.cur)));
-    ctx.lineTo(sx(px_(selected)), sy(py_(selected)));
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
+
+  // project the whole catalog once; in 3D, paint far-to-near
+  for (let i = 0; i < N; i++) {
+    const p = proj_(i);
+    PX[i] = p.x; PY[i] = p.y; PD[i] = p.d; PK[i] = p.k;
+    ORDER[i] = i;
+  }
+  if (view3d) ORDER.sort((a, b) => PD[a] - PD[b]);
 
   // the neighborhood — under a filter, non-matches fall into shadow and
   // matches get labels while they're few enough to read
   const labelZoom = cam.s >= 6;
   const labelMatches = filterOn && matchCount > 0 && matchCount <= 40;
-  ctx.font = "11px ui-monospace, Menlo, monospace";
   const labelBoxes = [];   // beacon labels yield to each other when crowded
-  for (let i = 0; i < N; i++) {
-    const x = sx(px_(i)), y = sy(py_(i));
+  for (let o = 0; o < N; o++) {
+    const i = ORDER[o];
+    const x = PX[i], y = PY[i];
     if (x < -8 || x > W + 8 || y < -8 || y > H + 8) continue;
-    const r = starRadius(i);
+    const r = starRadius(i) * PK[i];
     const hit = matchSet[i] === 1;
     if (filterOn && !hit) {
       ctx.fillStyle = "rgba(110,110,110,.16)";
@@ -221,6 +267,13 @@ function drawChart() {
       ctx.arc(x, y, Math.min(r, 1.4), 0, Math.PI * 2);
       ctx.fill();
       continue;
+    }
+    if (view3d && isBeacon(i)) {
+      // a stick down to the galactic plane — the classic depth cue
+      const g = projXYZ(px_(i), py_(i), 0);
+      ctx.strokeStyle = "rgba(255,215,106,.14)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(g.x, g.y); ctx.stroke();
     }
     ctx.fillStyle = CLASS_COL[cls_(i)[0]] || CLASS_COL["?"];
     ctx.beginPath();
@@ -249,34 +302,34 @@ function drawChart() {
 
   // Sol, always marked
   {
-    const x = sx(0), y = sy(0);
+    const p = projXYZ(0, 0, 0);
     ctx.strokeStyle = "#ffd76a";
     ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "#ffd76a";
-    ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill();
     if (state.cur !== SOL) {
       ctx.fillStyle = "rgba(255,215,106,.85)";
-      ctx.fillText("Sol", x + 9, y + 4);
+      ctx.fillText("Sol", p.x + 9, p.y + 4);
     }
   }
 
   // you are here
   {
-    const x = sx(px_(state.cur)), y = sy(py_(state.cur));
+    const p = proj_(state.cur);
     ctx.strokeStyle = "#ffd76a";
     ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.stroke();
   }
 
   // the selected star
   if (selected > -2) {
-    const x = sx(px_(selected)), y = sy(py_(selected));
+    const p = proj_(selected);
     ctx.strokeStyle = "#8fe9ff";
     ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "#8fe9ff";
-    ctx.fillText(name_(selected), x + 10, y + 4);
+    ctx.fillText(name_(selected), p.x + 10, p.y + 4);
   }
 }
 
@@ -290,7 +343,12 @@ chart.addEventListener("pointermove", (e) => {
   if (!dragging) return;
   const dx = e.clientX - lx, dy = e.clientY - ly;
   if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-  cam.x -= dx / cam.s; cam.y += dy / cam.s;
+  if (view3d) {
+    yaw += dx * 0.006;
+    tilt = Math.max(-1.55, Math.min(1.55, tilt + dy * 0.006));
+  } else {
+    cam.x -= dx / cam.s; cam.y += dy / cam.s;
+  }
   lx = e.clientX; ly = e.clientY;
   drawChart();
 });
@@ -302,7 +360,8 @@ chart.addEventListener("pointerup", (e) => {
   let best = -2, bd = 14;
   for (let i = -1; i < N; i++) {
     if (filterOn && i >= 0 && !matchSet[i] && i !== state.cur) continue;
-    const d = Math.hypot(sx(px_(i)) - e.clientX, sy(py_(i)) - e.clientY);
+    const p = proj_(i);
+    const d = Math.hypot(p.x - e.clientX, p.y - e.clientY);
     if (d < bd) { bd = d; best = i; }
   }
   if (best > -2) select(best);
@@ -339,6 +398,11 @@ chart.addEventListener("touchend", (e) => {
 
 function zoomAt(cx, cy, f) {
   const ns = Math.max(0.12, Math.min(60, cam.s * f));
+  if (view3d) {           // the orbit pivot holds; zoom is just scale
+    cam.s = ns;
+    drawChart();
+    return;
+  }
   const wx = cam.x + (cx - W / 2) / cam.s;
   const wy = cam.y - (cy - H / 2) / cam.s;
   cam.s = ns;
@@ -418,6 +482,18 @@ const autoBadge = $("autoBadge");
 function reflectAuto() { autoBadge.classList.toggle("on", !!state.auto); }
 autoBadge.addEventListener("click", () => { state.auto = !state.auto; save(); reflectAuto(); });
 reflectAuto();
+
+const d3Badge = $("d3Badge");
+function reflect3d() { d3Badge.classList.toggle("on", view3d); }
+d3Badge.addEventListener("click", () => {
+  view3d = !view3d;
+  state.v3 = view3d;
+  save();
+  reflect3d();
+  drawChart();
+});
+view3d = !!state.v3;
+reflect3d();
 
 $("helpBadge").addEventListener("click", () => $("help").classList.add("on"));
 $("help").addEventListener("click", () => $("help").classList.remove("on"));
