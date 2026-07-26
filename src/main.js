@@ -452,15 +452,40 @@ function select(i) {
 
 function refreshHere() {
   $("hereName").textContent = name_(state.cur);
-  $("hereSub").textContent = state.cur === SOL
-    ? "home"
-    : fmtLy(distSol(state.cur)) + " from Sol";
+  const sub = $("hereSub");
+  if (state.cur === SOL) {
+    sub.textContent = "home";
+    sub.classList.remove("link");
+    sub.title = "";
+  } else {
+    sub.textContent = fmtLy(distSol(state.cur)) + " from Sol ⌖";
+    sub.classList.add("link");
+    sub.title = "Select Sol and frame the way home";
+  }
   $("lgHops").textContent = state.hops;
   $("lgLy").textContent = fmtLy(state.ly);
   $("lgShip").textContent = fmtYr(state.tShip);
   $("lgUni").textContent = fmtYr(state.tUni);
   $("lgFar").textContent = fmtLy(state.far);
 }
+
+// the way home: select Sol (no travel) and frame the whole route.
+// In 3D the pivot stays on the current star, so only zoom out to bring
+// Sol inside the view; in 2D center the route and fit it.
+function frameSol() {
+  const d = distSol(state.cur);
+  if (view3d) {
+    cam.s = Math.max(0.12, Math.min(cam.s, 0.45 * Math.min(W, H) / d));
+  } else {
+    cam.x = px_(state.cur) / 2;
+    cam.y = py_(state.cur) / 2;
+    cam.s = Math.max(0.12, Math.min(12, 0.8 * Math.min(W, H) / d));
+  }
+  select(SOL);
+}
+$("hereSub").addEventListener("click", () => {
+  if (state.cur !== SOL) frameSol();
+});
 
 function arrive(to, f, d) {
   state.cur = to;
