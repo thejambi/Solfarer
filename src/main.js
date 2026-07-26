@@ -71,6 +71,45 @@ const save = () => localStorage.setItem("solfarer", JSON.stringify(state));
 let selected = -2;              // star under inspection, -2 = none
 
 // ---------------------------------------------------------------------------
+// Search & filter — matching stars stay bright, the rest fall into shadow
+// (and out of reach of the pointer).
+// ---------------------------------------------------------------------------
+const filter = { q: "", cls: new Set(), con: "", namedOnly: false };
+let filterOn = false;
+const matchSet = new Uint8Array(N);
+let matchCount = 0;
+
+function filterActive() {
+  return filter.q !== "" || filter.cls.size > 0 || filter.con !== "" ||
+         filter.namedOnly;
+}
+
+function matches(i) {
+  if (filter.namedOnly && !named_(i)) return false;
+  if (filter.cls.size > 0 && !filter.cls.has(cls_(i)[0])) return false;
+  if (filter.con && con_(i) !== filter.con) return false;
+  if (filter.q) {
+    const q = filter.q;
+    const hay = (name_(i) + " " + con_(i) + " " + cls_(i)).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function refilter() {
+  filterOn = filterActive();
+  matchCount = 0;
+  for (let i = 0; i < N; i++) {
+    matchSet[i] = filterOn ? (matches(i) ? 1 : 0) : 1;
+    if (filterOn && matchSet[i]) matchCount++;
+  }
+  const el = document.getElementById("matchCount");
+  el.textContent = filterOn ? matchCount + " match" + (matchCount === 1 ? "" : "es") : "";
+  document.getElementById("searchBadge").classList.toggle("on", filterOn);
+  drawChart();
+}
+
+// ---------------------------------------------------------------------------
 // The chart — 2D canvas, pan/zoom, top-down galactic plane
 // ---------------------------------------------------------------------------
 const chart = document.getElementById("chart");
@@ -120,19 +159,30 @@ function drawChart() {
     ctx.stroke();
   }
 
-  // the neighborhood
+  // the neighborhood — under a filter, non-matches fall into shadow and
+  // matches get labels while they're few enough to read
   const labelZoom = cam.s >= 6;
+  const labelMatches = filterOn && matchCount > 0 && matchCount <= 40;
   ctx.font = "11px ui-monospace, Menlo, monospace";
   for (let i = 0; i < N; i++) {
     const x = sx(px_(i)), y = sy(py_(i));
     if (x < -8 || x > W + 8 || y < -8 || y > H + 8) continue;
     const r = starRadius(i);
+    const hit = matchSet[i] === 1;
+    if (filterOn && !hit) {
+      ctx.fillStyle = "rgba(110,110,110,.16)";
+      ctx.beginPath();
+      ctx.arc(x, y, Math.min(r, 1.4), 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
     ctx.fillStyle = CLASS_COL[cls_(i)[0]] || CLASS_COL["?"];
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    if (labelZoom && named_(i) && i !== selected && i !== state.cur) {
-      ctx.fillStyle = "rgba(255,255,255,.42)";
+    if ((labelZoom && named_(i) || labelMatches) &&
+        i !== selected && i !== state.cur) {
+      ctx.fillStyle = "rgba(255,255,255,.5)";
       ctx.fillText(name_(i), x + r + 3, y + 3.5);
     }
   }
@@ -187,9 +237,11 @@ chart.addEventListener("pointermove", (e) => {
 chart.addEventListener("pointerup", (e) => {
   dragging = false;
   if (moved) return;
-  // pick: nearest star within 14 px
+  // pick: nearest star within 14 px — shadowed stars are out of reach,
+  // but where you are and home always answer
   let best = -2, bd = 14;
   for (let i = -1; i < N; i++) {
+    if (filterOn && i >= 0 && !matchSet[i] && i !== state.cur) continue;
     const d = Math.hypot(sx(px_(i)) - e.clientX, sy(py_(i)) - e.clientY);
     if (d < bd) { bd = d; best = i; }
   }
@@ -306,6 +358,53 @@ reflectAuto();
 
 $("helpBadge").addEventListener("click", () => $("help").classList.add("on"));
 $("help").addEventListener("click", () => $("help").classList.remove("on"));
+
+// --- search & filter wiring -------------------------------------------------
+const searchPanel = $("search");
+$("searchBadge").addEventListener("click", () => {
+  const on = searchPanel.classList.toggle("on");
+  if (on) $("q").focus();
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") searchPanel.classList.remove("on");
+});
+{
+  // constellation dropdown, from the data itself
+  const cons = [...new Set(STARS.map((s) => s[7]).filter(Boolean))].sort();
+  const sel = $("conSel");
+  for (const c of cons) {
+    const o = document.createElement("option");
+    o.value = o.textContent = c;
+    sel.appendChild(o);
+  }
+}
+$("q").addEventListener("input", (e) => {
+  filter.q = e.target.value.trim().toLowerCase();
+  refilter();
+});
+for (const chip of document.querySelectorAll("#clsChips .chip")) {
+  chip.addEventListener("click", () => {
+    const c = chip.dataset.c;
+    if (filter.cls.has(c)) { filter.cls.delete(c); chip.classList.remove("on"); }
+    else { filter.cls.add(c); chip.classList.add("on"); }
+    refilter();
+  });
+}
+$("conSel").addEventListener("change", (e) => {
+  filter.con = e.target.value;
+  refilter();
+});
+$("namedOnly").addEventListener("change", (e) => {
+  filter.namedOnly = e.target.checked;
+  refilter();
+});
+$("clearFilter").addEventListener("click", () => {
+  filter.q = ""; filter.cls.clear(); filter.con = ""; filter.namedOnly = false;
+  $("q").value = ""; $("conSel").value = ""; $("namedOnly").checked = false;
+  for (const chip of document.querySelectorAll("#clsChips .chip"))
+    chip.classList.remove("on");
+  refilter();
+});
 
 // ---------------------------------------------------------------------------
 // The flight — Lighthaul's relativistic optics on the real star field.
@@ -486,4 +585,5 @@ function flightFrame(now) {
 cam.x = px_(state.cur);
 cam.y = py_(state.cur);
 refreshHere();
+matchSet.fill(1);
 resize();

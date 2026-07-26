@@ -90,6 +90,27 @@
     border: 1px solid rgba(255,215,106,.25); }
   .badge.on { color: var(--ok); border-color: rgba(141,255,158,.5);
     text-shadow: 0 0 8px rgba(141,255,158,.5); }
+  .badge svg { display: block; margin: 1px 0; }
+
+  /* search & filter */
+  #search { top: 52px; left: 50%; transform: translateX(-50%); width: 270px;
+    display: none; }
+  #search.on { display: block; }
+  #q { width: 100%; font: inherit; font-size: 13px; color: var(--gold);
+    background: rgba(0,0,0,.45); border: 1px solid rgba(255,215,106,.3);
+    border-radius: 5px; padding: 6px 8px; outline: none; margin-bottom: 8px; }
+  #q::placeholder { color: var(--gold-dim); }
+  .chips { display: flex; gap: 5px; margin-bottom: 8px; }
+  .chip { flex: 1; text-align: center; padding: 4px 0; font-size: 11px;
+    border: 1px solid rgba(255,215,106,.25); border-radius: 4px;
+    color: var(--gold-dim); cursor: pointer; }
+  .chip.on { color: #000; background: var(--gold); border-color: var(--gold); }
+  #conSel { width: 100%; font: inherit; font-size: 12px; color: var(--gold);
+    background: rgba(0,0,0,.45); border: 1px solid rgba(255,215,106,.3);
+    border-radius: 5px; padding: 5px 6px; margin-bottom: 8px; }
+  label.named { display: block; font-size: 12px; color: var(--gold-dim);
+    margin-bottom: 8px; cursor: pointer; }
+  #clearFilter { cursor: pointer; color: var(--warn); letter-spacing: 1px; }
 
   /* flight HUD */
   #fhud { position: fixed; inset: 0; pointer-events: none; z-index: 8; display: none; }
@@ -162,7 +183,24 @@
 
 <div id="toggles">
   <div class="badge" id="autoBadge" title="Skip the flight; arrive instantly">AUTO TRAVEL</div>
+  <div class="badge" id="searchBadge" title="Search &amp; filter the catalog"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="10" cy="10" r="7"/><line x1="15.5" y1="15.5" x2="22" y2="22"/></svg></div>
   <div class="badge" id="helpBadge">?</div>
+</div>
+
+<div class="panel" id="search">
+  <div class="hd">SEARCH THE CATALOG</div>
+  <input id="q" type="text" placeholder="name, constellation, class…"
+         autocomplete="off" spellcheck="false" />
+  <div class="chips" id="clsChips">
+    <span class="chip" data-c="O">O</span><span class="chip" data-c="B">B</span>
+    <span class="chip" data-c="A">A</span><span class="chip" data-c="F">F</span>
+    <span class="chip" data-c="G">G</span><span class="chip" data-c="K">K</span>
+    <span class="chip" data-c="M">M</span><span class="chip" data-c="D">D</span>
+  </div>
+  <select id="conSel"><option value="">any constellation</option></select>
+  <label class="named"><input type="checkbox" id="namedOnly" /> named stars only</label>
+  <div class="row"><span class="k" id="matchCount"></span>
+    <span class="v clear" id="clearFilter">CLEAR</span></div>
 </div>
 
 <div id="fhud">
