@@ -97,7 +97,7 @@ function fmtLum(l) {
 // ---------------------------------------------------------------------------
 const state = {
   cur: SOL, hops: 0, ly: 0, tUni: 0, tShip: 0, far: 0,
-  auto: false, v3: false,
+  auto: false, v3: false, lbl: true,
 };
 try {
   Object.assign(state, JSON.parse(localStorage.getItem("solfarer") || "{}"));
@@ -170,6 +170,7 @@ addEventListener("resize", resize);
 // Yaw spins the sky about the galactic pole, tilt leans it over; the pivot is
 // wherever you're docked. tilt = 0, yaw = 0 reproduces the flat chart exactly.
 let view3d = false;
+let showLabels = true;
 let yaw = 0.7, tilt = 0.5;
 let cosA = 1, sinA = 0, cosB = 1, sinB = 0, czv = 0;
 function viewBasis() {
@@ -288,7 +289,8 @@ function drawChart() {
       ctx.arc(x, y, r + 2.5, 0, Math.PI * 2);
       ctx.stroke();
     }
-    if ((isBeacon(i) || labelZoom && named_(i) || labelMatches) &&
+    if (showLabels &&
+        (isBeacon(i) || labelZoom && named_(i) || labelMatches) &&
         i !== selected && i !== state.cur) {
       if (isBeacon(i)) {
         const w = name_(i).length * 6.6;
@@ -310,7 +312,7 @@ function drawChart() {
     ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "#ffd76a";
     ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill();
-    if (state.cur !== SOL) {
+    if (showLabels && state.cur !== SOL) {
       ctx.fillStyle = "rgba(255,215,106,.85)";
       ctx.fillText("Sol", p.x + 9, p.y + 4);
     }
@@ -330,8 +332,10 @@ function drawChart() {
     ctx.strokeStyle = "#8fe9ff";
     ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = "#8fe9ff";
-    ctx.fillText(name_(selected), p.x + 10, p.y + 4);
+    if (showLabels) {
+      ctx.fillStyle = "#8fe9ff";
+      ctx.fillText(name_(selected), p.x + 10, p.y + 4);
+    }
   }
 }
 
@@ -496,6 +500,18 @@ d3Badge.addEventListener("click", () => {
 });
 view3d = !!state.v3;
 reflect3d();
+
+const lblBadge = $("lblBadge");
+function reflectLbl() { lblBadge.classList.toggle("on", showLabels); }
+lblBadge.addEventListener("click", () => {
+  showLabels = !showLabels;
+  state.lbl = showLabels;
+  save();
+  reflectLbl();
+  drawChart();
+});
+showLabels = state.lbl !== false;
+reflectLbl();
 
 $("helpBadge").addEventListener("click", () => $("help").classList.add("on"));
 $("help").addEventListener("click", () => $("help").classList.remove("on"));
