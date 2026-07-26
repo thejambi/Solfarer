@@ -7,31 +7,49 @@
 // blueshifted CMB, on the real star field.
 import * as THREE from "three";
 import { STAR_VERT, STAR_FRAG, CMB_VERT, CMB_FRAG, lorentz } from "./relativity.js";
-import { STARS } from "./stars.js";
+import { STARS, BEACONS } from "./stars.js";
 
 // ---------------------------------------------------------------------------
 // Catalog accessors — stars.js rows are
-// [name, x, y, z, class, absmag, tempK, constellation, named]
-// index -1 is Sol.
+// [name, x, y, z, class, absmag, tempK, constellation, named, lum,
+//  apparent mag, variable, luminosity class]
+// index -1 is Sol. The bubble comes first; the far beacons — famous named
+// stars beyond 100 ly — follow at BEACON0 and up.
 // ---------------------------------------------------------------------------
 const SOL = -1;
-const N = STARS.length;
-const name_ = (i) => (i < 0 ? "Sol" : STARS[i][0]);
-const px_ = (i) => (i < 0 ? 0 : STARS[i][1]);
-const py_ = (i) => (i < 0 ? 0 : STARS[i][2]);
-const pz_ = (i) => (i < 0 ? 0 : STARS[i][3]);
-const cls_ = (i) => (i < 0 ? "G2" : STARS[i][4]);
-const absmag_ = (i) => (i < 0 ? 4.83 : STARS[i][5]);
-const temp_ = (i) => (i < 0 ? 5772 : STARS[i][6]);
-const con_ = (i) => (i < 0 ? "" : STARS[i][7]);
-const named_ = (i) => (i < 0 ? 1 : STARS[i][8]);
-const lum_ = (i) => (i < 0 ? 1 : STARS[i][9]);
-const amag_ = (i) => (i < 0 ? -26.7 : STARS[i][10]);
-const var_ = (i) => (i < 0 ? 0 : STARS[i][11]);
+const CAT = STARS.concat(BEACONS);
+const N = CAT.length;
+const BEACON0 = STARS.length;
+const isBeacon = (i) => i >= BEACON0;
+const name_ = (i) => (i < 0 ? "Sol" : CAT[i][0]);
+const px_ = (i) => (i < 0 ? 0 : CAT[i][1]);
+const py_ = (i) => (i < 0 ? 0 : CAT[i][2]);
+const pz_ = (i) => (i < 0 ? 0 : CAT[i][3]);
+const cls_ = (i) => (i < 0 ? "G2" : CAT[i][4]);
+const absmag_ = (i) => (i < 0 ? 4.83 : CAT[i][5]);
+const temp_ = (i) => (i < 0 ? 5772 : CAT[i][6]);
+const con_ = (i) => (i < 0 ? "" : CAT[i][7]);
+const named_ = (i) => (i < 0 ? 1 : CAT[i][8]);
+const lum_ = (i) => (i < 0 ? 1 : CAT[i][9]);
+const amag_ = (i) => (i < 0 ? -26.7 : CAT[i][10]);
+const var_ = (i) => (i < 0 ? 0 : CAT[i][11]);
+const lc_ = (i) => (i < 0 ? 5 : CAT[i][12]);
 
 const CLASS_DESC = { O: "blue giant", B: "blue-white star", A: "white star",
   F: "yellow-white star", G: "yellow dwarf", K: "orange dwarf",
   M: "red dwarf", D: "white dwarf", "?": "star" };
+const CLASS_WORD = { O: "blue", B: "blue-white", A: "white",
+  F: "yellow-white", G: "yellow", K: "orange", M: "red" };
+const LC_WORD = { 1: " supergiant", 2: " bright giant", 3: " giant",
+  4: " subgiant" };
+// what kind of star: the luminosity class outranks the dwarf wording, so
+// Betelgeuse is a red supergiant, not a red dwarf
+function starDesc(i) {
+  const c = cls_(i)[0];
+  if (c !== "D" && LC_WORD[lc_(i)] && CLASS_WORD[c])
+    return CLASS_WORD[c] + LC_WORD[lc_(i)];
+  return CLASS_DESC[c] || "star";
+}
 const CLASS_COL = { O: "#9fc0ff", B: "#aecaff", A: "#f2f4ff", F: "#faf1c8",
   G: "#ffdd7a", K: "#ffaa50", M: "#ff6e50", D: "#c8e0ff", "?": "#9a9a9a" };
 
@@ -56,7 +74,14 @@ function fmtYr(v) {
   if (v >= 1000) return (v / 1000).toFixed(2) + " kyr";
   return v.toFixed(1) + " yr";
 }
-const fmtBeta = (b) => b.toFixed(4).replace(/^0/, "") + "c";
+// never round up to "1.0000c" — extend digits until the truth shows
+function fmtBeta(b) {
+  for (let d = 4; d <= 8; d++) {
+    const s = b.toFixed(d);
+    if (!s.startsWith("1")) return s.replace(/^0/, "") + "c";
+  }
+  return ".99999999c";
+}
 function fmtLum(l) {
   if (!l) return "—";
   const n = l >= 100 ? Math.round(l).toLocaleString("en-US")
@@ -152,13 +177,21 @@ function drawChart() {
   ctx.fillStyle = "#000308";
   ctx.fillRect(0, 0, W, H);
 
-  // faint range rings from Sol
-  ctx.strokeStyle = "rgba(255,215,106,.09)";
+  // faint range rings from Sol — the outer ones carry their distance, so
+  // zooming out reads as a journey: 100 ly of neighborhood, then the void
   ctx.lineWidth = 1;
-  for (const r of [25, 50, 75, 100]) {
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  for (const r of [25, 50, 75, 100, 250, 500, 1000, 2000]) {
+    const pr = r * cam.s;
+    if (pr < 12 || pr > Math.max(W, H) * 1.5) continue;
+    ctx.strokeStyle = "rgba(255,215,106,.09)";
     ctx.beginPath();
-    ctx.arc(sx(0), sy(0), r * cam.s, 0, Math.PI * 2);
+    ctx.arc(sx(0), sy(0), pr, 0, Math.PI * 2);
     ctx.stroke();
+    if (r > 100) {
+      ctx.fillStyle = "rgba(255,215,106,.35)";
+      ctx.fillText(r + " ly", sx(0) + 4, sy(0) - pr - 5);
+    }
   }
 
   // route to the selected star
@@ -176,6 +209,7 @@ function drawChart() {
   const labelZoom = cam.s >= 6;
   const labelMatches = filterOn && matchCount > 0 && matchCount <= 40;
   ctx.font = "11px ui-monospace, Menlo, monospace";
+  const labelBoxes = [];   // beacon labels yield to each other when crowded
   for (let i = 0; i < N; i++) {
     const x = sx(px_(i)), y = sy(py_(i));
     if (x < -8 || x > W + 8 || y < -8 || y > H + 8) continue;
@@ -192,8 +226,22 @@ function drawChart() {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    if ((labelZoom && named_(i) || labelMatches) &&
+    if (isBeacon(i)) {
+      ctx.strokeStyle = "rgba(255,215,106,.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if ((isBeacon(i) || labelZoom && named_(i) || labelMatches) &&
         i !== selected && i !== state.cur) {
+      if (isBeacon(i)) {
+        const w = name_(i).length * 6.6;
+        if (labelBoxes.some((b) =>
+            Math.abs(b.x - x) < (b.w + w) / 2 + 8 && Math.abs(b.y - y) < 13))
+          continue;
+        labelBoxes.push({ x, y, w });
+      }
       ctx.fillStyle = "rgba(255,255,255,.5)";
       ctx.fillText(name_(i), x + r + 3, y + 3.5);
     }
@@ -290,7 +338,7 @@ chart.addEventListener("touchend", (e) => {
 });
 
 function zoomAt(cx, cy, f) {
-  const ns = Math.max(0.8, Math.min(60, cam.s * f));
+  const ns = Math.max(0.12, Math.min(60, cam.s * f));
   const wx = cam.x + (cx - W / 2) / cam.s;
   const wy = cam.y - (cy - H / 2) / cam.s;
   cam.s = ns;
@@ -309,9 +357,8 @@ function select(i) {
   selected = i;
   $("stName").textContent = name_(i);
   const c = cls_(i);
-  const desc = CLASS_DESC[c[0]] || "star";
   $("stNature").textContent =
-    c + " " + desc + (con_(i) ? " in " + con_(i) : "") +
+    c + " " + starDesc(i) + (con_(i) ? " in " + con_(i) : "") +
     (var_(i) ? " · variable" : "");
   $("stSol").textContent = i === SOL ? "home" : fmtLy(distSol(i));
   $("stHere").textContent = i === state.cur ? "you are here" : fmtLy(dist(state.cur, i));
@@ -386,7 +433,7 @@ addEventListener("keydown", (e) => {
 });
 {
   // constellation dropdown, from the data itself
-  const cons = [...new Set(STARS.map((s) => s[7]).filter(Boolean))].sort();
+  const cons = [...new Set(CAT.map((s) => s[7]).filter(Boolean))].sort();
   const sel = $("conSel");
   for (const c of cons) {
     const o = document.createElement("option");
